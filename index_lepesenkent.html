@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Törtek lépésről lépésre</title>
+<style>
+*{box-sizing:border-box} body{font-family:Arial,sans-serif;margin:0;padding:18px;background:linear-gradient(135deg,#e3f2fd,#fff3e0);color:#263238}
+.app{max-width:760px;margin:auto;background:#fff;padding:24px;border-radius:22px;box-shadow:0 10px 30px #0002}
+h1{text-align:center;color:#1565c0;margin-top:0}.top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:bold}
+.task{text-align:center;font-size:38px;font-weight:bold;margin:28px 0}
+.step{display:none;background:#f5f9ff;border:2px solid #bbdefb;border-radius:16px;padding:18px;margin:14px 0}
+.step.active,.step.done{display:block}.step.done{opacity:.72}.row{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+input{width:76px;padding:10px;font-size:20px;text-align:center;border:2px solid #90caf9;border-radius:10px}
+button{border:0;border-radius:12px;padding:12px 20px;font-size:17px;font-weight:bold;background:#1976d2;color:#fff;margin-top:12px;cursor:pointer}
+button.secondary{background:#607d8b}.feedback{min-height:28px;margin-top:10px;font-weight:bold}.ok{color:#2e7d32}.bad{color:#c62828}.hint{color:#ef6c00}
+.progress{height:12px;background:#e0e0e0;border-radius:20px;overflow:hidden;margin:16px 0}.bar{height:100%;background:#42a5f5;width:0}
+#end{display:none;text-align:center}.small{font-size:14px;color:#607d8b}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>🧮 Törtek lépésről lépésre</h1>
+<div class="top"><span>Feladat: <b id="taskNo">1</b>/10</span><span>Pont: <b id="score">0</b></span></div>
+<div class="progress"><div class="bar" id="bar"></div></div>
+<div id="game">
+<div class="task" id="task"></div>
+<div id="steps"></div>
+</div>
+<div id="end"><h2>🎉 Kész!</h2><h3 id="result"></h3><button onclick="location.reload()">Új gyakorlás</button></div>
+</div>
+<script>
+let q=1,score=0,data={},stepIndex=0,tries=0;
+const gcd=(a,b)=>b?gcd(b,a%b):Math.abs(a);
+const lcm=(a,b)=>Math.abs(a*b)/gcd(a,b);
+const simp=(n,d)=>{if(d<0){n=-n;d=-d}let g=gcd(n,d);return[n/g,d/g]};
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+
+function fractionInputs(prefix){
+ return `<input id="${prefix}n" type="number" aria-label="számláló"> / <input id="${prefix}d" type="number" aria-label="nevező">`;
+}
+function makeQuestion(){
+ let op=["+","−","×","÷"][rnd(0,3)], a=rnd(1,7),b=rnd(2,9),c=rnd(1,7),d=rnd(2,9);
+ while(a>=b)a=rnd(1,b-1); while(c>=d)c=rnd(1,d-1);
+ if(op==="−" && a/b<c/d){[a,b,c,d]=[c,d,a,b]}
+ data={op,a,b,c,d}; stepIndex=0; tries=0;
+ document.getElementById("task").textContent=`${a}/${b} ${op} ${c}/${d}`;
+ buildSteps();
+}
+function buildSteps(){
+ let s=[];
+ if(data.op==="+"||data.op==="−"){
+   let k=lcm(data.b,data.d), n1=data.a*(k/data.b), n2=data.c*(k/data.d), raw=data.op==="+"?n1+n2:n1-n2, fin=simp(raw,k);
+   data.answers=[k,[n1,k],[n2,k],[raw,k],fin];
+   s=[
+    ["1. Közös nevező","Írd be a legkisebb közös nevezőt!",`<input id="one" type="number">`],
+    ["2. Első tört bővítése",`Írd át a(z) ${data.a}/${data.b} törtet!`,fractionInputs("f1")],
+    ["3. Második tört bővítése",`Írd át a(z) ${data.c}/${data.d} törtet!`,fractionInputs("f2")],
+    ["4. Művelet","Számold ki az azonos nevezőjű törteket!",fractionInputs("raw")],
+    ["5. Végeredmény","Egyszerűsítsd, ha lehet!",fractionInputs("fin")]
+   ];
+ } else if(data.op==="×"){
+   let raw=[data.a*data.c,data.b*data.d],fin=simp(...raw);
+   data.answers=[data.a*data.c,data.b*data.d,raw,fin];
+   s=[
+    ["1. Számlálók szorzata",`${data.a} × ${data.c} = ?`,`<input id="one" type="number">`],
+    ["2. Nevezők szorzata",`${data.b} × ${data.d} = ?`,`<input id="two" type="number">`],
+    ["3. Kapott tört","Írd le a kapott törtet!",fractionInputs("raw")],
+    ["4. Végeredmény","Egyszerűsítsd, ha lehet!",fractionInputs("fin")]
+   ];
+ } else {
+   let rec=[data.d,data.c],raw=[data.a*data.d,data.b*data.c],fin=simp(...raw);
+   data.answers=[rec,raw,fin];
+   s=[
+    ["1. Reciprok",`Fordítsd meg a második törtet (${data.c}/${data.d})!`,fractionInputs("rec")],
+    ["2. Szorzás",`Most: ${data.a}/${data.b} × ${data.d}/${data.c}. Számold ki!`,fractionInputs("raw")],
+    ["3. Végeredmény","Egyszerűsítsd, ha lehet!",fractionInputs("fin")]
+   ];
+ }
+ document.getElementById("steps").innerHTML=s.map((x,i)=>`<div class="step ${i===0?'active':''}" id="step${i}"><h3>${x[0]}</h3><p>${x[1]}</p><div class="row">${x[2]}</div><button onclick="checkStep(${i})">Ellenőrzés</button><div class="feedback" id="fb${i}"></div></div>`).join("");
+}
+function valuesFor(i){
+ if(data.op==="+"||data.op==="−"){
+   if(i===0)return +document.getElementById("one").value;
+   let p=["f1","f2","raw","fin"][i-1];return[+document.getElementById(p+"n").value,+document.getElementById(p+"d").value];
+ }
+ if(data.op==="×"){
+   if(i===0)return +document.getElementById("one").value;
+   if(i===1)return +document.getElementById("two").value;
+   let p=i===2?"raw":"fin";return[+document.getElementById(p+"n").value,+document.getElementById(p+"d").value];
+ }
+ let p=["rec","raw","fin"][i];return[+document.getElementById(p+"n").value,+document.getElementById(p+"d").value];
+}
+function equal(a,b){return Array.isArray(a)?a[0]===b[0]&&a[1]===b[1]:a===b}
+function checkStep(i){
+ let v=valuesFor(i), ans=data.answers[i], fb=document.getElementById("fb"+i); tries++;
+ if((Array.isArray(v)&&(!v[1]||Number.isNaN(v[0])))||(!Array.isArray(v)&&Number.isNaN(v))){fb.className="feedback bad";fb.textContent="Írd be a választ!";return}
+ if(equal(v,ans)){
+   fb.className="feedback ok";fb.textContent="✅ Helyes! Jöhet a következő lépés.";
+   document.getElementById("step"+i).className="step done";
+   if(i+1<data.answers.length){document.getElementById("step"+(i+1)).className="step active";document.getElementById("step"+(i+1)).scrollIntoView({behavior:"smooth",block:"center"})}
+   else{score++;document.getElementById("score").textContent=score;setTimeout(nextQuestion,900)}
+ }else{
+   fb.className="feedback bad";
+   fb.textContent=tries%2===0?hint(i):"❌ Még nem jó. Próbáld újra!";
+ }
+}
+function hint(i){
+ if((data.op==="+"||data.op==="−")&&i===0)return`💡 Olyan számot keress, amely osztható ${data.b}-mal és ${data.d}-mal is.`;
+ if(data.op==="÷"&&i===0)return"💡 A számláló és a nevező helyet cserél.";
+ if(data.op==="×"&&i<2)return"💡 Szorozd össze a két megadott számot.";
+ return"💡 Ellenőrizd külön a számlálót és a nevezőt!";
+}
+function nextQuestion(){
+ q++; if(q>10){document.getElementById("game").style.display="none";document.getElementById("end").style.display="block";document.getElementById("result").textContent=`Pontszám: ${score}/10`;return}
+ document.getElementById("taskNo").textContent=q;document.getElementById("bar").style.width=((q-1)*10)+"%";makeQuestion();window.scrollTo({top:0,behavior:"smooth"});
+}
+makeQuestion();
+</script>
+</body>
+</html>
